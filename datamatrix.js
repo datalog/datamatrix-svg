@@ -230,9 +230,6 @@ function DATAMatrix( Q ) {
 		k = toBase( text ); l = k.length;
 		if( l > 0 && l < el ) enc = k, el = l;
 
-	//console.log('a', el )
-	//console.log('b', l )
-
 
 		var
 		h, w, nc = 1, nr = 1, fw, fh, /* symbol size, regions, region size */
@@ -494,7 +491,7 @@ function DATAMatrix( Q ) {
 		   q = ('string' == typeof Q ) ? { msg: Q } : Q || {},
 		   p = q.pal || ['#000'],
 		  dm = abs( q.dim ) || 256,
-		  pd = abs( q.pad ), pd = ( pd > -1 ) ? pd : 0,
+		  pd = abs( q.pad ), pd = ( pd > -1 ) ? pd : 2,
 		  mx = [ 1, 0, 0, 1, pd, pd ],
 
 		  fg = p[ 0 ], fg = ishex( fg ) ? fg : '#000',
