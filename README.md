@@ -9,5 +9,5 @@ Datamatrix generator written on pure javascript. Produces highly optimized SVG n
 After `datamatrix.min.js` is downloaded and connected to your html5 page, call:
 ```javascript
 var
-svgNode = Datamatrix('Hello World!');
+svgNode = DATAMatrix('Hello World!');
 ```
