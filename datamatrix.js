@@ -2,7 +2,7 @@
 	https://github.com/datalog/datamatrix-svg
 	under MIT license
 	# datamatrix.js has no dependencies
-	Copyright (c) 2020-2026 Constantine
+	Copyright (c) 2020 Constantine
 */
 
 'use strict';
@@ -23,20 +23,13 @@ function DATAMatrix( Q ) {
 	,toAscii = function( t ) {
 
 		var
-		i = 0,
-		r = [], c, c1,
+		r = [],
 		l = t.length;
 
-		for( ; i < l; i++ ) {
+		for( var i = 0; i < l; i++ ) {
 
-			c = t.charCodeAt( i );
-
-			if( 60 == c ) { /* FNC1 */
-
-				if( '<FNC1>' == t.substr( i, 6 ) ) { r.push( 232 ); i += 5; continue; }
-				if(   '<GS>' == t.substr( i, 4 ) ) { r.push( 232 ); i += 3; continue; }
-			}
-
+			var
+			c = t.charCodeAt( i ),
 			c1 = ( i + 1 < l ) ? t.charCodeAt( i + 1 ) : 0;
 
 			if( c > 47 && c < 58 && c1 > 47 && c1 < 58 ) { /* 2 digits */
@@ -58,7 +51,6 @@ function DATAMatrix( Q ) {
 	,toBase = function( t ) {
 
 		var
-		i = 0,
 		r = [ 231 ], /* switch to Base 256 */
 		l = t.length;
 
@@ -69,7 +61,7 @@ function DATAMatrix( Q ) {
 
 			r.push( l % 250 + 149 * ( r.length + 1 ) % 255 + 1 & 255 ); /* length low byte (in 255 state algo) */
 
-		for( ; i < l; i++ ) {
+		for( var i = 0; i < l; i++ ) {
 
 			r.push( t.charCodeAt( i ) + 149 * ( r.length + 1 ) % 255 + 1 & 255 ); /* data in 255 state algo */
 		}
@@ -80,46 +72,39 @@ function DATAMatrix( Q ) {
 	,toEdifact = function( t ) {
 
 		var
-		i = 0,
 		n = t.length,
-		cw = 0, ch, rem = n & 3,
-		r = ( n > 0 ) ? [ 240 ] : [], /* switch to Edifact */
+		l = ( n + 1 ) & -4, cw = 0, ch,
+		r = ( l > 0 ) ? [ 240 ] : []; /* switch to Edifact */
 
-		push3 = function() { /* 4 data in 3 words */
+		for( var i = 0; i < l; i++ ) {
 
-			r.push( cw >> 16 ),
-			r.push( cw >> 8 & 255 ),
-			r.push( cw & 255 ),
-			cw = 0;
-		};
+			if( i < l - 1 ) {
 
-		for( ; i < n; i++ ) {
+				/* encode char */
+				ch = t.charCodeAt( i );
+				if( ch < 32 || ch > 94 ) return []; /* not in set */
 
-			/* encode char */
-			ch = t.charCodeAt( i );
-			if( ch < 32 || ch > 94 ) return []; /* not in set */
+			} else ch = 31; /* return to ASCII */
 
 			cw = cw * 64 + ( ch & 63 );
 
-			if( 3 == ( i & 3 ) ) push3();
-		}
+			if(( i & 3 ) == 3 ) {
 
-		if ( rem > 0 ) {
+				/* 4 data in 3 words */
+				r.push( cw >> 16 ), 
+				r.push( cw >> 8& 255 ),
+				r.push( cw & 255 ),
+				cw = 0;
+			}
+		};
 
-			cw = cw * 64 + ( 31 & 63 );
-			cw <<= ( 6 * ( 3 - rem ) );
-
-			push3();
-		}
-
-		return r;
+		return l > n ? r : r.concat( toAscii( t.substr( l == 0 ? 0 : l - 1 ) ) ); /* last chars*/
 	}
 
 	,toText = function( t, s ) {
 
 		var
-		i = 0, j = 1,
-		ch, x,
+		i, j,
 		cc = 0,
 		cw = 0,
 		l = t.length,
@@ -138,12 +123,13 @@ function DATAMatrix( Q ) {
 			}
 		};
 
-		for( ; i < l; i++ ) {
+		for( i = 0; i < l; i++ ) {
 
 			/* last char in ASCII is shorter */
 			if( 0 == cc && i == l - 1 ) break;
 
-			ch = t.charCodeAt( i );
+			var
+			ch = t.charCodeAt(i);
 
 			if( ch > 127 && 238 != r[ 0 ] ) { /* extended char */
 
@@ -152,19 +138,21 @@ function DATAMatrix( Q ) {
 				ch -= 128; /* hi bit in C40 & TEXT */
 			}
 
-			for( ; ch > s[ j ]; j += 3 ); /* select char set */
+			for( j = 1; ch > s[ j ]; j += 3 ); /* select char set */
 
+			var
 			x = s[ j + 1 ]; /* shift */
+
 			
 			if( 8 == x || ( 9 == x && 0 == cc && i == l - 1 ) ) return []; /* char not in set or padding fails */
 
-			if( x < 5 && cc == 2 && i == l - 1) break; /* last char in ASCII */
+			if( x < 5 && cc == 2 && i == l-1) break; /* last char in ASCII */
 			if( x < 5 ) push( x ); /* shift */
 
 			push( ch - s[ j + 2 ] ); /* char offset */
 		}
 
-		if( 2 == cc && 238 !== r[ 0 ] ) { /* add pad */
+		if(2 == cc && 238 !== r[ 0 ] ) { /* add pad */
 
 			 push( 0 ); 
 		}
@@ -181,8 +169,9 @@ function DATAMatrix( Q ) {
 		text = unescape( encodeURI( text ) );
 
 		var
-		M = [],
+		M = [];
 
+		var
 		enc = toAscii( text ),
 		el = enc.length,
 
@@ -199,8 +188,8 @@ function DATAMatrix( Q ) {
 					255, 1,  0
 				]),
 		l = k.length;
-
 		if( l > 0 && l < el ) enc = k, el = l;
+
 
 		k = toText( text, [	/* TEXT */
 					239,
@@ -211,7 +200,6 @@ function DATAMatrix( Q ) {
 					 64, 1, 43,
 					 90, 2, 64,
 					 95, 1, 69,
-					 96, 2, 96,
 					122, 9, 83,
 					127, 2, 96,
 					255, 1,  0
@@ -229,8 +217,6 @@ function DATAMatrix( Q ) {
 					 42, 9, 41,
 					 47, 8,  0,
 					 57, 9, 44,
-					 61, 8,  0,
-					 62, 9, 60,
 					 64, 8,  0,
 					 90, 9, 51,
 					255, 8,  0
