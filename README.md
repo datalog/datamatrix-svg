@@ -35,13 +35,6 @@ svgNode = DATAMatrix({
 * **pal** - is array of [`color`,`background-color`] strings that represent hex color codes, default value is [`'#000'`] along with transparent background. Set [`'#000'`,`'#fff'`] to make background opaque.
 * **vrb** - svg node is optimized to be compact and default value is `0`, set this parameter to `1` in case you need more verbose output.
 
-## Message types & formats
-You can encode various types of data into the Data Matrix. The engine automatically supports control tags like `<FNC1>` and `<GS>`, converting them into their respective non-printable special characters:
-```javascript
-// GS1 example:
-var svgNode = DATAMatrix("<FNC1>1234<GS>1234567890");
-```
-
 ## Message
 The function evaluates the input string and tries to find a compact combination of supported encoding modes (**ASCII, TEXT, C40, X12, EDIFACT, and BASE256**) to keep the barcode size reasonable.
 
