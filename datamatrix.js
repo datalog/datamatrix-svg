@@ -476,7 +476,6 @@ function DATAMatrix( Q ) {
 		yy = h + 2 * nr;
 	}
 
-
 	return ( function() {
 
 		function ishex( c ) {
