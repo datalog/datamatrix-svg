@@ -47,6 +47,6 @@ var svgNode = DATAMatrix("<FNC1>1234<GS>1234567890");
 *Note: Always verify the generated barcode with a hardware scanner or an industry-standard validation app to ensure it encodes exactly what your target system expects.*
 
 ## Thanks
-Special thanks to @adrianschlatter for his detailed feedback and bug reports. 
+Special thanks to [@adrianschlatter](https://github.com/adrianschlatter) for his detailed feedback and bug reports. 
 
 I recently checked in on this repository and found his technical comments. Fixing those edge cases was a great task, and it actually pushed me to recover this GitHub account just days before it was lost. Thank you, Adrian!
