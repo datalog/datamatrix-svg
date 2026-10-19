@@ -1,0 +1,21 @@
+{
+  "name": "datamatrix-svg",
+  "version": "0.1.0",
+  "authors": [
+    "datalog <https://github.com/datalog>"
+  ],
+  "main": "datamatrix.js",
+  "description": "Data Matrix generator written on pure javascript. Produces highly optimized SVG nodes.",
+  "keywords": [
+    "datamatrix",
+    "svg"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}

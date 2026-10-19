@@ -7,7 +7,7 @@
 
 'use strict';
 
-function DATAMatrix( Q ) {
+export default function DATAMatrix( Q ) {
 
 	var
 	 M = []
