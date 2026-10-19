@@ -2,7 +2,7 @@
 	https://github.com/datalog/datamatrix-svg
 	under MIT license
 	# datamatrix.js has no dependencies
-	Copyright (c) 2020 Constantine
+	Copyright (c) 2020-2026 Constantine
 */
 
 'use strict';
@@ -200,6 +200,7 @@ function DATAMatrix( Q ) {
 					 64, 1, 43,
 					 90, 2, 64,
 					 95, 1, 69,
+					 96, 2, 96,
 					122, 9, 83,
 					127, 2, 96,
 					255, 1,  0
@@ -217,6 +218,8 @@ function DATAMatrix( Q ) {
 					 42, 9, 41,
 					 47, 8,  0,
 					 57, 9, 44,
+					 61, 8,  0,
+					 62, 9, 60,
 					 64, 8,  0,
 					 90, 9, 51,
 					255, 8,  0
