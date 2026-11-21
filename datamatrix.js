@@ -431,10 +431,10 @@ function DATAMatrix( Q ) {
 		/* first padding */
 		if( el < l - s ) enc[ el++ ] = 129;
 
-		/* more padding */
+		/* More padding: ISO/IEC 16022:2024, B.2.2; retain 254. */
 		while( el < l - s ) {
 
-			enc[ el++ ] = ( ( ( 149 * el ) % 253 ) + 130 ) % 254;
+			enc[ el++ ] = ( ( ( 149 * el ) % 253 ) + 130 ) % 254 || 254;
 		}
 
 
