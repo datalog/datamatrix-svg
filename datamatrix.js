@@ -819,5 +819,6 @@ function DATAMatrix( Q ) {
 
 	} )();
 }
-if( typeof module !== 'undefined' && module.exports )
+
+if('undefined' !== typeof module && module.exports )
 	module.exports = DATAMatrix;
