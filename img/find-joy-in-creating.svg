@@ -1,0 +1,57 @@
+<svg viewBox="0 0 90 16" fill="#222" width="900" height="160" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" version="1.1">
+
+<style>@media(prefers-reduced-motion:reduce){.dots{display:none}}</style>
+
+<!-- https://github.com/datalog/datamatrix-svg -->
+<defs>
+	<path id="c01" d="m26,12h-26v-12h1v3h1v1h1v1h1v-1h-1v-3h-1v-1h1v1h1v-1h1v1h1v-1h1v2h1v-2h1v2h1v-2h1v2h-1v1h-3v1h-1v-1h1v-1h-1v1h-1v-1h-1v1h1v2h-1v1h-1v-1h-1v1h1v1h-2v1h2v1h-1v1h-1v1h3v-1h-1v-1h1v-1h1v3h4v-1h1v-1h2v-1h-1v-1h1v-2h-2v1h1v1h-1v-1h-1v-1h-1v2h1v1h1v1h-1v-1h-1v2h-2v-2h-1v-1h1v1h2v-1h-1v-1h-1v-1h2v-1h1v1h1v-1h3v2h2v1h-2v3h1v-1h1v2h2v-1h-1v-1h-1v-1h2v-1h1v-1h1v1h1v1h-1v1h-1v2h1v-1h1v1h1v-1h1v-1h-1v1h-1v-1h1v-1h2v3h3z"/>
+	<path id="c02" d="m12,11v-1h-1v1z"/>
+	<path id="c03" d="m26,10h-2v-2h1v-1h1v1h-1v1h1z"/>
+	<path id="c04" d="m24,7h-1v-3h-1v1h-1v-2h-1v2h-1v-3h-1v1h-1v-2h-1v3h-1v1h-1v-2h1v-2h-1v-1h1v1h1v-1h1v1h1v-1h1v1h1v-1h1v1h1v-1h1v2h1v-2h1v1h1v1h-1v1h1v1h-2v1h2v1h-2z"/>
+	<path id="c05" d="m22,7h-1v-1h1z"/>
+	<path id="c06" d="m17,6h-1v-1h1v-1h1v1h-1z"/>
+	<path id="c07" d="m13,3h-1v-3h1z"/>
+</defs>
+<path fill="#fff" d="M0,0V16H90V0Z"/>
+<g transform="matrix(1,0,0,1,2,2)">
+	<use href="#c01"/>
+	<use href="#c02" fill="#fff"/>
+	<use href="#c03"/>
+	<use href="#c04"/>
+	<use href="#c05"/>
+	<use href="#c06"/>
+	<use href="#c07"/>
+</g>
+
+<!-- Colored contours. -->
+<g transform="matrix(1,0,0,1,32,2)">
+	<use href="#c01" fill="#82d"/>
+	<use href="#c02" fill="#afe"/>
+	<use href="#c03" fill="#c15"/>
+	<use href="#c04" fill="#07c"/>
+	<use href="#c05" fill="#b40"/>
+	<use href="#c06" fill="#43d"/>
+	<use href="#c07" fill="#172"/>
+</g>
+
+<!-- The same contours, with dots moving at five modules per second. -->
+<g transform="matrix(1,0,0,1,62,2)" fill="none" stroke-width=".35" stroke-linecap="round" stroke-linejoin="round" shape-rendering="geometricPrecision">
+	<use href="#c01" stroke="#82d"/>
+	<use href="#c02" stroke="#afe"/>
+	<use href="#c03" stroke="#c15"/>
+	<use href="#c04" stroke="#07c"/>
+	<use href="#c05" stroke="#b40"/>
+	<use href="#c06" stroke="#43d"/>
+	<use href="#c07" stroke="#172"/>
+	<g class="dots" fill="#fff" stroke-width=".16">
+		<circle r=".4" stroke="#82d"><animateMotion dur="49.2s" repeatCount="indefinite"><mpath href="#c01"/></animateMotion></circle>
+		<circle r=".4" fill="#222" stroke="#fff"><animateMotion dur=".8s" repeatCount="indefinite"><mpath href="#c02"/></animateMotion></circle>
+		<circle r=".4" stroke="#c15"><animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#c03"/></animateMotion></circle>
+		<circle r=".4" stroke="#07c"><animateMotion dur="14.8s" repeatCount="indefinite"><mpath href="#c04"/></animateMotion></circle>
+		<circle r=".4" stroke="#b40"><animateMotion dur=".8s" repeatCount="indefinite"><mpath href="#c05"/></animateMotion></circle>
+		<circle r=".4" stroke="#43d"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#c06"/></animateMotion></circle>
+		<circle r=".4" stroke="#172"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#c07"/></animateMotion></circle>
+	</g>
+</g>
+
+</svg>
