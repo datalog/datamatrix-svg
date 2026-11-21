@@ -4,7 +4,7 @@
 
 Data Matrix ECC 200 generator in pure JavaScript with compact SVG output. ISO/IEC 16022:2024. No dependencies.
 
-The generator combines ASCII, C40, Text, ANSI X12, EDIFACT, and Base 256 segments to fit your text into the smallest supported symbol. Pass a string for the default settings or an options object to control encoding and appearance.
+The generator combines ASCII, C40, Text, ANSI X12, EDIFACT, and Base 256 encoding modes to reduce symbol size.
 
 ### [Data Matrix Generator](https://datalog.github.io/demo/datamatrix-svg/) (Live Demo)
 
@@ -13,44 +13,63 @@ Enter your text, adjust the settings, and inspect the decoded segments or SVG co
 ---
 
 > [!NOTE]
-> Use [datamatrix.min.js](datamatrix.min.js) for the full generator. The readable source is available in [datamatrix.js](datamatrix.js). Both expose the same API.
+> Download [datamatrix.min.js](datamatrix.min.js) for use in a browser or Node.js. The readable source, [datamatrix.js](datamatrix.js), provides the same API.
 
 <br>
 
 ## Quick start
 
-Download [datamatrix.min.js](datamatrix.min.js), include it in your HTML page, and append the returned SVG element.
+### In an HTML page
+
+**SVG element** — include the generator and append the returned element to a container:
 
 ```html
 <div id="datamatrix"></div>
 <script src="datamatrix.min.js"></script>
 <script>
-
-    document.getElementById('datamatrix')
-        .appendChild( DATAMatrix('Hello World!') );
-
+    document.getElementById( 'datamatrix' )
+        .appendChild( DATAMatrix( 'Hello World!' ) );
 </script>
 ```
 
-`DATAMatrix(text)` is shorthand for `DATAMatrix({ msg: text })`. Each call returns a new SVG DOM element.
+**SVG string** — alternatively, use `str: 1` to get SVG markup:
+
+```javascript
+var svgText = DATAMatrix( { msg: 'Hello World!', str: 1 } );
+
+document.getElementById( 'datamatrix' ).innerHTML = svgText;
+```
+
+`DATAMatrix( text )` is shorthand for `DATAMatrix( { msg: text } )`. Both output formats support the same encoding and appearance options.
+
+### In Node.js
+
+In Node.js, set `str: 1` to return SVG markup without a DOM library:
+
+```javascript
+var DATAMatrix = require( './datamatrix.min.js' );
+var fs = require( 'fs' );
+
+var svgText = DATAMatrix( { msg: 'Hello World!', str: 1 } );
+
+fs.writeFileSync( 'datamatrix.svg', svgText );
+```
 
 ## Options
 
 ```javascript
-var svgNode = DATAMatrix({
+var svgNode = DATAMatrix( {
 
-     msg :  "Hello World!"
+     msg :  'Hello World!'
     ,dim :   256
     ,pad :   2
     ,rct :   0
     ,esc :   0
-    ,pal : ["#000", "#f2f4f8"]
+    ,pal : ['#000', '#f2f4f8']
     ,vrb :   0
+    ,str :   0
 
-});
-
-document.getElementById('datamatrix')
-    .appendChild( svgNode );
+} );
 ```
 
 | Option | Default | Description |
@@ -59,11 +78,64 @@ document.getElementById('datamatrix')
 | `dim` | `256` | SVG height in pixels, including the quiet zone. The width follows the symbol's aspect ratio. |
 | `pad` | `2` | Quiet zone on each side, measured in modules. Set to `0` to omit it. |
 | `rct` | `0` | Set to `1` to prefer a rectangular symbol. Falls back to a square when the message exceeds rectangular capacity. |
-| `esc` | `0` | Set to `1` to recognize escapes, FNC1, GS separators, and complete Macro 05/06 wrappers. See [supported commands](#optional-string-preprocessing). |
+| `esc` | `0` | Set to `1` to recognize escapes, FNC1, GS separators, and complete Macro 05/06 wrappers. See [Escapes and commands](#escapes-and-commands). |
 | `pal` | `['#000']` | Foreground and optional background as `#RGB` or `#RRGGBB`. The background is transparent when omitted. |
 | `vrb` | `0` | Set to `1` to describe each dark module separately in the SVG path. The encoded matrix stays the same. |
+| `str` | `0` | Set to `1` to return SVG markup as a string. The default returns an SVG DOM element; use string output in environments without a DOM. |
 
 A message that exceeds the supported symbol capacity throws a `RangeError`.
+
+## Text encoding
+
+Input is a JavaScript Unicode string. The generator converts it to UTF-8 and selects packing modes for the resulting bytes. When non-ASCII bytes are present, it declares UTF-8 once with ECI 000026.
+
+<details>
+<summary>UTF-8, ECI, and segment boundaries</summary><br/>
+
+ECI specifies how decoded bytes are interpreted. Under [ISO/IEC 16022:2024](https://www.iso.org/standard/80926.html), 7.3.2–7.3.3, it remains active across packing-mode changes until another ECI is invoked or the data ends.
+
+When needed, the generator writes the UTF-8 ECI codewords `241,27` after any GS1 or Macro prefix and includes their cost when selecting the symbol size. ASCII letters and digits retain their one-byte UTF-8 representation and can use compact packing modes within a Unicode message.
+
+Without ECI, the standard's default interpretation is ISO-8859-1 (ECI 000003), as specified in 7.2.2.
+
+</details>
+
+## Escapes and commands
+
+Set `esc: 1` to recognize the following escapes and commands. The demo exposes this option as **Recognize escapes and commands**. With the default `esc: 0`, the input is literal text; UTF-8 encoding and automatic ECI still apply.
+
+| Input | Meaning with `esc: 1` |
+| :--- | :--- |
+| `\xXX` | A character with the two-digit hexadecimal value. It is then encoded in UTF-8: `\xE8` means `è`, not a raw byte `E8`. |
+| `\\` | One literal backslash. Escape replacement is not recursive. |
+| `<FNC1>` | An explicit FNC1 command. At the start, without a Macro header, it selects GS1. |
+| `<GS>` or a GS character (`\x1D`) | A field separator: FNC1 in a GS1 message, otherwise the ordinary GS character. |
+| `[)>\x1E05\x1D…\x1E\x04` | A complete Macro 05 wrapper. |
+| `[)>\x1E06\x1D…\x1E\x04` | A complete Macro 06 wrapper. |
+
+Command tags are case-insensitive. Escapes are expanded before commands are recognized, so `\x3CFNC1>` also becomes an FNC1 command. Use `esc: 0` when those spellings should remain literal. Unknown or incomplete escape spellings remain unchanged.
+
+```javascript
+DATAMatrix( {
+
+     msg : '<FNC1>010123456789012810ABC\\x1D211234'
+    ,esc : 1
+
+} );
+```
+
+The doubled backslash in the JavaScript example passes the literal escape `\x1D` to the generator. An actual GS character in the input works too.
+
+<details>
+<summary>GS1, FNC1, and Macro 05/06</summary><br/>
+
+A leading FNC1 is stored in the GS1 header. FNC1 in the second codeword position has the standard industry/AIM meaning.
+
+Macro 05/06 replaces a complete standard header and trailer with one codeword, `236` or `237` ([ISO/IEC 16022:2024](https://www.iso.org/standard/80926.html), 7.2.4.8 / Table 3). The wrapper must cover the whole message. Trailing whitespace after the wrapper is ignored. A Macro header takes precedence over GS1 detection. GS separators in the body remain ordinary character 29, while explicit `<FNC1>` commands retain their meaning. The demo reader restores the full Macro header and trailer.
+
+The generator does not support general ECI switching, Structured Append, or Reader Programming.
+
+</details>
 
 ## Symbol sizes and capacity
 
@@ -102,63 +174,9 @@ The number of characters that fit depends on the selected modes and service comm
 
 </details>
 
-## Text encoding
-
-Input is a JavaScript Unicode string. The generator converts it to UTF-8 and selects packing modes for the resulting bytes. When non-ASCII bytes are present, it declares UTF-8 once with ECI 000026.
-
-<details>
-<summary>UTF-8, ECI, and segment boundaries</summary><br/>
-
-ECI tells a reader which character encoding to use. It applies across all six packing modes. Digits and ASCII letters still take one byte in UTF-8 and can use compact modes within a Unicode message.
-
-Under [ISO/IEC 16022:2024](https://www.iso.org/standard/80926.html), 7.3.2–7.3.3, an ECI remains active until another ECI is invoked or the encoded data ends. Switching between ASCII, C40, Text, X12, EDIFACT, and Base 256 does not change it. The generator therefore emits `241,27` once before the payload, after any GS1 or Macro prefix. It does not repeat ECI at segment boundaries or wait until Base 256 begins.
-
-The generator counts the ECI header when choosing the symbol size. It uses UTF-8 for the whole message; it does not choose a different character encoding for each segment.
-
-Without ECI, the standard's default interpretation is ISO-8859-1 (ECI 000003), as specified in 7.2.2.
-
-</details>
-
-## Optional string preprocessing
-
-Set `esc: 1` to recognize the following escapes and commands. The demo exposes this option as **Recognize escapes and commands**. With the default `esc: 0`, the input is literal text; UTF-8 encoding and automatic ECI still apply.
-
-| Input | Meaning with `esc: 1` |
-| :--- | :--- |
-| `\xXX` | A character with the two-digit hexadecimal value. It is then encoded in UTF-8: `\xE8` means `è`, not a raw byte `E8`. |
-| `\\` | One literal backslash. Escape replacement is not recursive. |
-| `<FNC1>` | An explicit FNC1 command. At the start, without a Macro header, it selects GS1. |
-| `<GS>` or a GS character (`\x1D`) | A field separator: FNC1 in a GS1 message, otherwise the ordinary GS character. |
-| `[)>\x1E05\x1D…\x1E\x04` | A complete Macro 05 wrapper. |
-| `[)>\x1E06\x1D…\x1E\x04` | A complete Macro 06 wrapper. |
-
-Command tags are case-insensitive. Escapes are expanded before commands are recognized, so `\x3CFNC1>` also becomes an FNC1 command. Use `esc: 0` when those spellings should remain literal. Unknown or incomplete escape spellings remain unchanged.
-
-```javascript
-DATAMatrix({
-
-     msg : "<FNC1>010123456789012810ABC\\x1D211234"
-    ,esc : 1
-
-});
-```
-
-The doubled backslash in the JavaScript example passes the literal escape `\x1D` to the generator. An actual GS character in the input works too.
-
-<details>
-<summary>GS1, FNC1, and Macro 05/06</summary><br/>
-
-A leading `<FNC1>` selects GS1 and is stored in the header. Inside that message, `<FNC1>`, `<GS>`, and GS characters become FNC1 separators. Outside GS1, an explicit `<FNC1>` still means FNC1; `<GS>` and GS characters remain ordinary character 29. FNC1 in the second codeword position has the standard industry/AIM meaning.
-
-Macro 05/06 replaces a complete standard header and trailer with one codeword, `236` or `237` ([ISO/IEC 16022:2024](https://www.iso.org/standard/80926.html), 7.2.4.8 / Table 3). The wrapper must cover the whole message; trailing whitespace after its end is tolerated. A Macro header takes precedence over GS1 detection. GS separators in the body remain ordinary character 29, while explicit `<FNC1>` commands retain their meaning. The demo reader restores the full Macro header and trailer.
-
-General ECI switching, Structured Append, and Reader Programming are not supported.
-
-</details>
-
 ## SVG contours
 
-By default, one SVG path follows the outlines of the dark regions. Shared edges are removed, straight lines are combined, and holes stay open. The result is smaller SVG with the same Data Matrix pattern.
+By default, one SVG path follows the outlines of the dark regions. Shared edges are removed, straight lines are combined, and holes stay open. This produces more compact SVG without changing the encoded matrix.
 
 Turn on **Explore SVG contours** in the demo to see the outlines, or set `vrb: 1` to draw a separate square for each dark module.
 
@@ -194,7 +212,7 @@ A historical de facto convention rotates the ECC order to `8,9,0,1,2,3,4,5,6,7`.
 
 In local checks, ZXing Java 3.5.3 rejected three ISO-order 144 × 144 symbols with `ChecksumException` and decoded them when only the ECC order was rotated. A 132 × 132 control decoded in either case. This identifies a decoder compatibility difference, not an error in the generator's ISO ordering.
 
-The generator keeps the ISO order. The historical line remains commented in the source; there is no option to enable it. If a reader rejects a 144 × 144 symbol, check which order it expects.
+The generator uses the ISO order and does not expose a compatibility switch. If a reader rejects a 144 × 144 symbol, check which order it expects.
 
 </details>
 
@@ -205,7 +223,7 @@ ISO/IEC 16022:2024 is the normative reference. Round trips through this reader o
 
 The demo reader supports the generator's original ECC 200 sizes, leading UTF-8 ECI, FNC1, and Macro 05/06. It returns decoded `text`, payload `bytes`, and an optional `utf8Text` view. Text follows the declared ECI or the ISO default. A displayed segment that splits a UTF-8 character shows its bytes rather than guessed characters.
 
-Remaining conformance work includes exhaustive termination and shift cases, malformed-stream rejection, padding validation, and normative placement/ECC fixtures for every size. DMRE, general ECI switching, Structured Append, and Reader Programming are unsupported. The reader is not fully ISO-verified.
+Remaining conformance work includes exhaustive termination and shift cases, malformed-stream rejection, padding validation, and normative placement/ECC fixtures for every size. The demo reader does not support DMRE, general ECI switching, Structured Append, or Reader Programming. It is not fully ISO-verified.
 
 </details>
 
