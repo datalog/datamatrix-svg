@@ -2,7 +2,7 @@
 
 # Data Matrix generator [![LICENSE](img/license.svg)](/LICENSE)
 
-Data Matrix ECC 200 generator in pure JavaScript with compact SVG output. ISO/IEC 16022:2024. No dependencies.
+Data Matrix ECC 200 generator in pure JavaScript with compact SVG output and no dependencies. Supports square and rectangular symbols (ISO/IEC 16022:2024), including DMRE formats (ISO/IEC 21471:2025).
 
 The generator combines ASCII, C40, Text, ANSI X12, EDIFACT, and Base 256 encoding modes to reduce symbol size.
 
@@ -64,6 +64,7 @@ var svgNode = DATAMatrix( {
     ,dim :   256
     ,pad :   2
     ,rct :   0
+    ,ver :  ''
     ,esc :   0
     ,pal : ['#000', '#f2f4f8']
     ,vrb :   0
@@ -77,13 +78,14 @@ var svgNode = DATAMatrix( {
 | `msg` | `''` | Unicode text to encode. Non-ASCII text uses UTF-8 with ECI 26. |
 | `dim` | `256` | SVG height in pixels, including the quiet zone. The width follows the symbol's aspect ratio. |
 | `pad` | `2` | Quiet zone on each side, measured in modules. Set to `0` to omit it. |
-| `rct` | `0` | Set to `1` to prefer a rectangular symbol. Falls back to a square when the message exceeds rectangular capacity. |
+| `rct` | `0` | `0`: square; `1`: prefer an original rectangle; `2`: also allow DMRE rectangles. Falls back to a square when no allowed rectangle fits. |
+| `ver` | `''` | Fix the size as height × width, for example `'8x120'`. Overrides `rct`, including DMRE sizes. Omit or use `''` for automatic selection. |
 | `esc` | `0` | Set to `1` to recognize escapes, FNC1, GS separators, and complete Macro 05/06 wrappers. See [Escapes and commands](#escapes-and-commands). |
 | `pal` | `['#000']` | Foreground and optional background as `#RGB` or `#RRGGBB`. The background is transparent when omitted. |
 | `vrb` | `0` | Set to `1` to describe each dark module separately in the SVG path. The encoded matrix stays the same. |
 | `str` | `0` | Set to `1` to return SVG markup as a string. The default returns an SVG DOM element; use string output in environments without a DOM. |
 
-A message that exceeds the supported symbol capacity throws a `RangeError`.
+An unknown `ver` or a message exceeding the selected size throws a `RangeError`. A fixed size never falls back to a different size.
 
 ## Text encoding
 
@@ -139,7 +141,15 @@ The generator does not support general ECI switching, Structured Append, or Read
 
 ## Symbol sizes and capacity
 
-The generator supports the 24 square ECC 200 sizes from 10 × 10 to 144 × 144 modules and the six original rectangular sizes. DMRE is not supported.
+The generator supports 24 square ECC 200 sizes from 10 × 10 to 144 × 144 modules, six original rectangles, and 18 additional DMRE rectangles. DMRE is enabled with `rct: 2`; existing `rct: 0` and `rct: 1` settings keep their original behavior.
+
+Fix a size when a particular height or width matters:
+
+```javascript
+DATAMatrix( { msg: 'Hello!', ver: '8x120' } );
+```
+
+Size names use height first and a lowercase `x`. The automatic selector is used when `ver` is omitted.
 
 <details>
 <summary>Symbol sizes and data capacities</summary><br/>
@@ -169,6 +179,31 @@ Dimensions include the finder borders and exclude the quiet zone. Each codeword 
 | 12 × 36 | 22 |
 | 16 × 36 | 32 |
 | 16 × 48 | 49 |
+
+DMRE rectangles (`rct: 2`), from [ISO/IEC 21471:2025](https://www.iso.org/standard/84783.html), Table 1:
+
+| DMRE size (height × width) | Data codewords |
+| :--- | ---: |
+| 8 × 48 | 18 |
+| 8 × 64 | 24 |
+| 8 × 80 | 32 |
+| 8 × 96 | 38 |
+| 8 × 120 | 49 |
+| 8 × 144 | 63 |
+| 12 × 64 | 43 |
+| 12 × 88 | 64 |
+| 16 × 64 | 62 |
+| 20 × 36 | 44 |
+| 20 × 44 | 56 |
+| 20 × 64 | 84 |
+| 22 × 48 | 72 |
+| 24 × 48 | 80 |
+| 24 × 64 | 108 |
+| 26 × 40 | 70 |
+| 26 × 48 | 90 |
+| 26 × 64 | 118 |
+
+With rectangles enabled, the generator chooses the smallest fitting rectangular area; equal areas prefer the lower height. DMRE requires a reader that supports these additional sizes.
 
 The number of characters that fit depends on the selected modes and service commands. The largest symbol holds up to 3,116 digits without additional headers.
 
@@ -221,9 +256,9 @@ The generator uses the ISO order and does not expose a compatibility switch. If 
 
 ISO/IEC 16022:2024 is the normative reference. Round trips through this reader or another library check behavior and compatibility; they do not prove full conformance.
 
-The demo reader supports the generator's original ECC 200 sizes, leading UTF-8 ECI, FNC1, and Macro 05/06. It returns decoded `text`, payload `bytes`, and an optional `utf8Text` view. Text follows the declared ECI or the ISO default. A displayed segment that splits a UTF-8 character shows its bytes rather than guessed characters.
+The demo reader supports the generator's ECC 200 and DMRE sizes, leading UTF-8 ECI, FNC1, and Macro 05/06. It returns decoded `text`, payload `bytes`, and an optional `utf8Text` view. Text follows the declared ECI or the ISO default. A displayed segment that splits a UTF-8 character shows its bytes rather than guessed characters.
 
-Remaining conformance work includes exhaustive termination and shift cases, malformed-stream rejection, padding validation, and normative placement/ECC fixtures for every size. The demo reader does not support DMRE, general ECI switching, Structured Append, or Reader Programming. It is not fully ISO-verified.
+Remaining conformance work includes exhaustive termination and shift cases, malformed-stream rejection, padding validation, and normative placement/ECC fixtures for every size. The demo reader does not support general ECI switching, Structured Append, or Reader Programming. It is not fully ISO-verified.
 
 </details>
 
@@ -231,5 +266,5 @@ Remaining conformance work includes exhaustive termination and shift cases, malf
 
 ## Credits and license
 
-* The Data Matrix format is specified in [ISO/IEC 16022:2024](https://www.iso.org/standard/80926.html).
+* Data Matrix is specified in [ISO/IEC 16022:2024](https://www.iso.org/standard/80926.html); DMRE in [ISO/IEC 21471:2025](https://www.iso.org/standard/84783.html).
 * Copyright © 2020–2026 Constantine. Released under the [MIT License](LICENSE).
