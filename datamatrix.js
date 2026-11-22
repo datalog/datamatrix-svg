@@ -11,50 +11,43 @@ function DATAMatrix( Q ) {
 
 	function textMode( table, extended ) { /* keep the table local to one mode. */
 
+		var values = [] ,ch = 256 ,value ,j ,shift ,prefix;
+		while( ch-- ) {
+			value = ch;
+			prefix = [];
+			if( value >= 128 && extended ) { prefix = [ 1, 30 ]; value -= 128; }
+			for( j = 1; value > table[ j ]; j += 3 );
+			shift = table[ j + 1 ];
+			if( 8 === shift ) continue;
+			if( shift < 5 ) prefix.push( shift );
+			prefix.push( value - table[ j + 2 ] );
+			values[ ch ] = prefix;
+		}
+		if( extended ) values[ 256 ] = [ 1, 27 ]; /* FNC1: ISO/IEC 16022:2024, Tables C.1/C.2. */
+
 		return {
-			prepare: function() { /* shared table-driven byte mapping. */
+			 search: function( text, capacity, offer, ascii ) {
 
-				var values = [] ,ch = 256 ,value ,j ,shift ,prefix;
-				while( ch-- ) {
-					value = ch;
-					prefix = [];
-					if( value >= 128 && extended ) { prefix = [ 1, 30 ]; value -= 128; }
-					for( j = 1; value > table[ j ]; j += 3 );
-					shift = table[ j + 1 ];
-					if( 8 === shift ) continue;
-					if( shift < 5 ) prefix.push( shift );
-					prefix.push( value - table[ j + 2 ] );
-					values[ ch ] = prefix;
-				}
-				if( extended ) values[ 256 ] = [ 1, 27 ]; /* FNC1: ISO/IEC 16022:2024, Tables C.1/C.2. */
-				return values;
-			}
-			,scan: function( text, start, capacity, prefix, offer, values, ascii ) {
-
-				/* count: mode values; cost/prefix: codewords. */
-				var count = 0 ,end ,raw ,cost ,ch;
-				for( end = start + 1; end <= text.length; end++ ) {
-					raw = values[ charCode( text, end - 1 ) ];
-					if( !raw ) break;
-					count += raw.length;
-					cost = 1 + ( count / 3 | 0 ) * 2;
-					if( prefix + cost > capacity ) break;
-					if( 0 === count % 3 ) {
-						offer( end, cost + 1 );
-						if( end === text.length && capacity < Infinity && capacity - prefix - cost <= 1 ) offer( end, cost, { implicit: true } );
-						if( ascii && end === text.length - 1 && prefix + cost + 1 === capacity ) {
+				var sum = 0 ,best = [];
+				return function( end, prefix, ch ) {
+					var start = end - 1 ,raw = values[ ch ] ,tail = text.length - end ,entry ,pad ,cost ,implicit;
+					if( !raw ) { best = []; sum = 0; return; }
+					bestStart( best, sum % 3, start, prefix - 2 * ( sum / 3 | 0 ) );
+					sum += raw.length;
+					for( pad = 0; pad <= ( extended && !tail ? 1 : 0 ); pad++ ) {
+						entry = best[ ( sum + pad ) % 3 ];
+						if( !entry ) continue;
+						cost = entry.cost + 1 + 2 * ( ( sum + pad ) / 3 | 0 );
+						implicit = !tail && capacity - cost <= 1 - pad;
+						offer( entry.start, end, cost + !implicit, { pad: pad, implicit: implicit } );
+						if( ascii && 1 === tail && cost + 1 === capacity ) {
 							ch = charCode( text, end );
-							if( ch < 128 || 256 === ch ) offer( text.length, cost + 1, { implicit: true, tail: 1 } );
+							if( ch < 128 || 256 === ch ) offer( entry.start, text.length, cost + 1, { implicit: true, tail: 1 } );
 						}
 					}
-					if( extended && 2 === count % 3 && end === text.length ) {
-						cost += 2;
-						offer( end, cost + 1, { pad: true } );
-						if( prefix + cost === capacity ) offer( end, cost, { pad: true, implicit: true } );
-					}
-				}
+				};
 			}
-			,encode: function( text, segment, result, values, ascii ) {
+			,encode: function( text, segment, result, ascii ) {
 				toText( text, segment, result, values, ascii, table[ 0 ] );
 			}
 		};
@@ -64,8 +57,6 @@ function DATAMatrix( Q ) {
 	 M = []
 	,xx = 0
 	,yy = 0
-
-	,ceil = Math.ceil
 
 	,isDigit = function( code ) {
 
@@ -77,6 +68,11 @@ function DATAMatrix( Q ) {
 		return text.charCodeAt( at );
 	}
 
+	,bestStart = function( state, slot, start, cost ) {
+
+		if( !state[ slot ] || cost < state[ slot ].cost ) state[ slot ] = { start: start, cost: cost };
+	}
+
 	,bit = function( x, y ) {
 
 		( M[ y ] = M[ y ] || [] )[ x ] = 1; /* M[ y ][ x ] = 1 */
@@ -84,18 +80,23 @@ function DATAMatrix( Q ) {
 
 	/* Mode keys:
 		fallback : optional; marks the ASCII encoder used for implicit trailing bytes.
-		prepare  : optional; builds per-mode data once before the segment search.
-		scan     : required; offers segment ends and word costs through offer().
+		search   : required; returns a private transition function (end, prefixCost, charCode).
+		           offer(start, end, totalCost, options, requiredCapacity) includes the header cost.
 		encode   : required; appends a selected segment's codewords to the result.
 	*/
 	,MODES = [
 		 { /* ASCII: single bytes, upper shift and pairs of digits. */
 			 fallback: true
-			,scan: function( text, start, capacity, prefix, offer ) {
+			,search: function( text, capacity, offer ) {
 
-				var ch = charCode( text, start );
-				offer( start + 1, ch < 128 || 256 === ch ? 1 : 2 );
-				if( isDigit( ch ) && isDigit( charCode( text, start + 1 ) ) ) offer( start + 2, 1 );
+				var pair = Infinity;
+				return function( end, prefix, ch ) {
+					offer( end - 1, end, prefix + ( ch < 128 || 256 === ch ? 1 : 2 ) );
+					if( isDigit( ch ) ) {
+						offer( end - 2, end, pair + 1 );
+						pair = prefix;
+					} else pair = Infinity;
+				};
 			}
 			,encode: function( text, segment, result ) {
 
@@ -156,31 +157,31 @@ function DATAMatrix( Q ) {
 		], false )
 
 		,{ /* EDIFACT: groups of four six-bit values. */
-			 scan: function( text, start, capacity, prefix, offer, data, ascii ) {
+			 search: function( text, capacity, offer, ascii ) {
 
-				var end ,count ,cost ,tail ,ch ,next;
-				for( end = start + 1; end <= text.length; end++ ) {
-					ch = charCode( text, end - 1 );
-					if( ch < 32 || ch > 94 ) break;
-					count = end - start;
-					cost = 1 + ceil( ( count + 1 ) * 6 / 8 );
-					if( prefix + cost - 2 > capacity ) break;
-					tail = ceil( ( count % 4 + 1 ) * 6 / 8 );
-					offer( end, cost, null, prefix + cost + 3 - tail );
-					if( count % 4 || capacity === Infinity ) continue;
-					cost = 1 + count / 4 * 3;
-					if( capacity - prefix - cost > 2 ) continue;
-					if( end === text.length ) offer( end, cost, { implicit: true } );
-					if( !ascii || text.length - end > 2 ) continue;
-					tail = text.length - end;
-					ch = charCode( text, end );
-					next = charCode( text, end + 1 );
-					if( 2 === tail && isDigit( ch ) && isDigit( next ) ) tail = 1;
-					else if( ch >= 128 && ch !== 256 || next >= 128 && next !== 256 ) continue;
-					if( tail ) offer( text.length, cost + tail, { implicit: true, tail: text.length - end } );
-				}
+				var best = [];
+				return function( end, prefix, ch ) {
+					var start = end - 1 ,tail = text.length - end ,entry ,cost ,count ,next ,i;
+					if( ch < 32 || ch > 94 ) { best = []; return; }
+					bestStart( best, start % 4, start, prefix - 3 * ( start / 4 | 0 ) );
+					for( i = 0; i < 4; i++ ) {
+						entry = best[ i ];
+						if( !entry ) continue;
+						start = entry.start;
+						cost = entry.cost + 1 + 3 * ( ( end - i ) / 4 | 0 );
+						count = ( end - start ) % 4;
+						offer( start, end, cost + ( count < 3 ? count + 1 : 3 ), null, cost + 3 );
+						if( count || capacity - cost > 2 ) continue;
+						if( tail > 2 || tail && !ascii ) continue;
+						ch = charCode( text, end );
+						next = charCode( text, end + 1 );
+						if( ch >= 128 && 256 !== ch || next >= 128 && 256 !== next ) continue;
+						offer( start, text.length, cost + ( 2 === tail && isDigit( ch ) && isDigit( next ) ? 1 : tail ),
+							{ implicit: true, tail: tail } );
+					}
+				};
 			}
-			,encode: function( text, segment, result, data, ascii ) {
+			,encode: function( text, segment, result, ascii ) {
 
 				var end = segment.end - ( segment.tail || 0 )
 				,buffer = 0 ,bits = 0 ,i ,value;
@@ -202,17 +203,19 @@ function DATAMatrix( Q ) {
 		 }
 
 		,{ /* Base 256: length and bytes randomized at their final stream positions. */
-			 scan: function( text, start, capacity, prefix, offer ) {
+			 search: function( text, capacity, offer ) {
 
-				var end ,count ,cost;
-				for( end = start + 1; end <= text.length; end++ ) {
+				var best = Infinity ,start;
+				return function( end, prefix, ch ) {
+					var at = end - 1 ,cost = prefix - at ,count ,rest;
+					if( ch > 255 ) { best = Infinity; return; }
+					/* A newer equal minimum has no larger length header. */
+					if( cost <= best ) { best = cost; start = at; }
 					count = end - start;
-					if( count > 1556 || charCode( text, end - 1 ) > 255 ) break;
-					cost = count + ( count <= 249 ? 2 : 3 );
-					if( prefix + cost - 1 > capacity ) break;
-					offer( end, cost );
-					if( count > 249 && end === text.length && prefix + count + 2 === capacity ) offer( end, count + 2, { rest: true } );
-				}
+					if( count > 1556 ) return; /* No other start can fit ECC 200 either. */
+					rest = count > 249 && end === text.length && best + end + 2 === capacity;
+					offer( start, end, best + end + ( count <= 249 || rest ? 2 : 3 ), { rest: rest } );
+				};
 			}
 			,encode: function( text, segment, result ) {
 
@@ -237,7 +240,7 @@ function DATAMatrix( Q ) {
 
 		var push = function( value ) {
 			packed = 40 * packed + value;
-			if( ++count === 3 ) {
+			if( 3 === ++count ) {
 				result.push( ++packed >> 8, packed & 255 );
 				count = packed = 0;
 			}
@@ -281,7 +284,7 @@ function DATAMatrix( Q ) {
 		if( escaped ) {
 			/* Explicit FNC1 is always a command; GS becomes FNC1 only in GS1. */
 			text = text.replace( /(<FNC1>)|<GS>|\x1d/gi, function( all, fnc1 ) {
-				return fnc1 || header[ 0 ] === 232 ? '\u0100' : '\x1d';
+				return fnc1 || 232 === header[ 0 ] ? '\u0100' : '\x1d';
 			});
 		}
 
@@ -291,14 +294,13 @@ function DATAMatrix( Q ) {
 		return { text: text, header: header };
 	}
 
-	,findSegments = function( text, capacity, data, ascii, header ) { /* mode-independent shortest path. */
+	,findSegments = function( text, capacity, ascii, header ) {
 
-		var costs = [ header.length ] ,history = [] ,start ,end ,mode;
+		var costs = [ header.length ] ,history = [] ,steps = [] ,end ,mode ,ch;
 		end = text.length;
 		while( end ) costs[ end-- ] = Infinity;
 
-		var offer = function( end, size, options, required ) {
-			var cost = costs[ start ] + size;
+		var offer = function( start, end, cost, options, required ) {
 			if( cost > capacity || required > capacity || cost >= costs[ end ] ) return;
 			var segment = options || {};
 			segment.start = start;
@@ -308,16 +310,17 @@ function DATAMatrix( Q ) {
 			history[ end ] = segment;
 		};
 
-		for( start = 0; start < text.length; start++ ) {
-			if( costs[ start ] >= capacity ) continue;
-			for( mode = 0; mode < MODES.length; mode++ ) {
-				MODES[ mode ].scan( text, start, capacity, costs[ start ], offer, data[ mode ], ascii );
-			}
+		for( mode = 0; mode < MODES.length; mode++ ) steps[ mode ] = MODES[ mode ].search( text, capacity, offer, ascii );
+
+		for( end = 1; end <= text.length; end++ ) {
+			ch = charCode( text, end - 1 );
+			for( mode = 0; mode < MODES.length; mode++ )
+				steps[ mode ]( end, costs[ end - 1 ], ch );
 		}
 		return { cost: costs[ text.length ], history: history };
 	}
 
-	,writeSegments = function( text, history, data, ascii, header ) {
+	,writeSegments = function( text, history, ascii, header ) {
 
 		var segments = [] ,result = header.slice() ,end = text.length ,segment;
 		while( end ) {
@@ -327,7 +330,7 @@ function DATAMatrix( Q ) {
 		}
 		while( segments.length ) {
 			segment = segments.pop();
-			MODES[ segment.mode ].encode( text, segment, result, data[ segment.mode ], ascii );
+			MODES[ segment.mode ].encode( text, segment, result, ascii );
 		}
 		return result;
 	}
@@ -337,25 +340,27 @@ function DATAMatrix( Q ) {
 		header = header || [];
 
 		var
-		 data = [] ,ascii
+		 ascii
 		,square = [ 3, 5, 8, 12, 18, 22, 30, 36, 44, 62, 86, 114, 144, 174, 204, 280, 368, 456, 576, 696, 816, 1050, 1304, 1558 ]
 		,rectangle = [ 5, 10, 16, 22, 32, 49 ]
-		,i ,mode ,capacities ,plan ,minimum;
+		,i ,mode ,capacities ,base ,plan ,minimum;
 
 		if( text.length > 3116 ) throw new RangeError( 'Message exceeds Data Matrix capacity' );
 		mode = MODES.length;
 		while( mode-- ) {
-			if( MODES[ mode ].prepare ) data[ mode ] = MODES[ mode ].prepare();
 			if( MODES[ mode ].fallback ) ascii = MODES[ mode ];
 		}
 
-		plan = findSegments( text, Infinity, data, ascii, header );
-		minimum = plan.cost - 2; /* end-of-symbol rules can save up to two words. */
+		base = findSegments( text, Infinity, ascii, header );
+		minimum = base.cost - 2; /* end-of-symbol rules can save up to two words. */
 		capacities = rectangular ? rectangle.concat( square.slice( 9 ) ) /* square capacities above 49 */ : square;
 		for( i = 0; i < capacities.length; i++ ) {
 			if( capacities[ i ] < minimum ) continue;
-			plan = findSegments( text, capacities[ i ], data, ascii, header );
-			if( plan.cost <= capacities[ i ] ) return { words: writeSegments( text, plan.history, data, ascii, header ), capacity: capacities[ i ] };
+			/* Reuse the plan when spare capacity exceeds the two-word ending saving. */
+			plan = capacities[ i ] > base.cost + 2
+				? base
+				: findSegments( text, capacities[ i ], ascii, header );
+			if( plan.cost <= capacities[ i ] ) return { words: writeSegments( text, plan.history, ascii, header ), capacity: capacities[ i ] };
 		}
 		throw new RangeError( 'Message exceeds Data Matrix capacity' );
 	}
@@ -482,7 +487,7 @@ function DATAMatrix( Q ) {
 			j = w + 2 * nc;
 			while( j-- ) {
 				bit( j, i + fh + 1 );
-				if( ( j & 1 ) == 0 ) bit( j, i );
+				if( 0 == ( j & 1 ) ) bit( j, i );
 			}
 		}
 
@@ -491,7 +496,7 @@ function DATAMatrix( Q ) {
 			j = h;
 			while( j-- ) {
 				bit( i, j + ( j / fh | 0 ) * 2 + 1 );
-				if( ( j & 1 ) == 1 ) bit( i + fw + 1, j + ( j / fh | 0 ) * 2 );
+				if( 1 == ( j & 1 ) ) bit( i + fw + 1, j + ( j / fh | 0 ) * 2 );
 			}
 		}
 
@@ -512,7 +517,7 @@ function DATAMatrix( Q ) {
 		/* diagonal steps */
 		for( i = 0; i < l; r -= s, c += s ) {
 
-			if( r == h - 3 && c == - 1 )
+			if( r == h - 3 && - 1 == c )
 
 				k = [ /* corner A layout */
 					     w, 6 - h
@@ -525,7 +530,7 @@ function DATAMatrix( Q ) {
 					,    1,     2
 				];
 
-			else if( r == h + 1 && c == 1 && ( w & 7 ) == 0 && ( h & 7 ) == 6 )
+			else if( r == h + 1 && 1 == c && 0 == ( w & 7 ) && 6 == ( h & 7 ) )
 
 				k = [ /* corner D layout */
 					 w - 2,     -h
@@ -538,7 +543,7 @@ function DATAMatrix( Q ) {
 					,   -1,     -2
 				];
 			else {
-				if( r == 0 && c == w - 2 && ( w & 3 ) ) continue; /* corner B: omit upper left */
+				if( 0 == r && c == w - 2 && ( w & 3 ) ) continue; /* corner B: omit upper left */
 				if( r < 0 || c >= w || r >= h || c < 0 ) { /* outside */
 
 					 s  = -s /* turn around */
@@ -551,7 +556,7 @@ function DATAMatrix( Q ) {
 						,c += s;
 					}
 				}
-				if( r == h - 2 && c == 0 && ( w & 3 ) )
+				if( r == h - 2 && 0 == c && ( w & 3 ) )
 
 					k = [ /* corner B layout */
 						 w - 1, 3 - h
@@ -564,7 +569,7 @@ function DATAMatrix( Q ) {
 						,    0,    -1
 					];
 
-				else if( r == h - 2 && c == 0 && ( w & 7 ) == 4 )
+				else if( r == h - 2 && 0 == c && 4 == ( w & 7 ) )
 
 					k = [ /* corner C layout */
 						 w - 1, 5 - h
@@ -577,7 +582,7 @@ function DATAMatrix( Q ) {
 						,    0,    -1
 					];
 
-				else if( r == 1 && c == w - 1 && ( w & 7 ) == 0 && ( h & 7 ) == 6 ) continue; /* omit corner D */
+				else if( 1 == r && c == w - 1 && 0 == ( w & 7 ) && 6 == ( h & 7 ) ) continue; /* omit corner D */
 				else k = b; /* nominal L - shape layout */
 			}
 
