@@ -64,6 +64,7 @@ function DATAMatrix( Q ) {
 						}
 					}
 				}
+				/* ISO/IEC 16022:2024, 7.2.5.3(b): pad with Shift 1 (0). The +1 is part of triplet packing. */
 				if( count === 2 ) { packed = 40 * packed + 1; result.push( packed >> 8, packed & 255 ); }
 				if( !( flags & 2 ) ) result.push( 254 );
 			}
@@ -335,14 +336,14 @@ function DATAMatrix( Q ) {
 			i = table.length;
 			while( i-- ) {
 				format = table[ i ];
-				if( version === ( format[ 3 ] || format[ 2 ] ) + 'x' + format[ 2 ] ) break;
+				if( version === format[ 2 ] + 'x' + ( format[ 3 ] || format[ 2 ] ) ) break;
 			}
 			if( i < 0 ) throw new RangeError( 'Unsupported Data Matrix version' );
 			formats = [ format ];
 		} else {
 			formats = table.slice( 0, 24 );
 			if( rectangular ) formats = table.slice( 24, rectangular > 1 ? 48 : 30 ).sort( function( a, b ) {
-				return a[ 2 ] * a[ 3 ] - b[ 2 ] * b[ 3 ] || a[ 3 ] - b[ 3 ];
+				return a[ 2 ] * a[ 3 ] - b[ 2 ] * b[ 3 ] || a[ 2 ] - b[ 2 ];
 			}).concat( formats );
 			base = findSegments( text, Infinity, header );
 		}
@@ -351,7 +352,8 @@ function DATAMatrix( Q ) {
 			capacity = format[ 1 ];
 			spare = base ? capacity - base.cost : 0;
 			if( spare < -2 ) continue;
-			/* End-of-symbol rules can affect plans within two words of capacity. */
+			/* EDIFACT can implicitly return to ASCII with at most two words left.
+			   Reusing the unbounded plan here can turn an explicit unlatch into data. */
 			plan = spare > 2 ? base : findSegments( text, capacity, header );
 			if( plan.cost <= capacity ) return { words: writeSegments( text, plan.history, header ), format: format };
 		}
@@ -367,7 +369,7 @@ function DATAMatrix( Q ) {
 		,el = enc.length
 		,format = selected.format
 		,nc = format[ 0 ], nr = format[ 3 ] ? 1 : nc
-		,w = format[ 2 ] - 2 * nc, h = ( format[ 3 ] || format[ 2 ] ) - 2 * nr
+		,w = ( format[ 3 ] || format[ 2 ] ) - 2 * nc, h = format[ 2 ] - 2 * nr
 		,fw = w / nc, fh = h / nr
 		,capacity = format[ 1 ], l = w * h >> 3, b = l > 255 ? 2 * ( l >> 9 ) + 2 : 1
 		,s = ( l - capacity ) / b
@@ -767,7 +769,7 @@ function DATAMatrix( Q ) {
 	} )();
 }
 
-/* Format: region columns, data words, width, optional height.
+/* Format: region columns, data words, height, optional width.
    24 squares, 6 original rectangles, 18 DMRE (ISO/IEC 21471:2025, Table 1).
    Region rows equal columns for squares, otherwise 1. */
 DATAMatrix.formats = [
@@ -796,31 +798,31 @@ DATAMatrix.formats = [
 	,[    6, 1304,  132 ]
 	,[    6, 1558,  144 ]
 	/* ISO/IEC 16022 rectangles. */
-	,[    1,    5,   18,    8 ]
-	,[    2,   10,   32,    8 ]
-	,[    1,   16,   26,   12 ]
-	,[    2,   22,   36,   12 ]
-	,[    2,   32,   36,   16 ]
-	,[    2,   49,   48,   16 ]
+	,[    1,    5,    8,   18 ]
+	,[    2,   10,    8,   32 ]
+	,[    1,   16,   12,   26 ]
+	,[    2,   22,   12,   36 ]
+	,[    2,   32,   16,   36 ]
+	,[    2,   49,   16,   48 ]
 	/* ISO/IEC 21471 DMRE. */
-	,[    2,   18,   48,    8 ]
-	,[    4,   24,   64,    8 ]
-	,[    4,   32,   80,    8 ]
-	,[    4,   38,   96,    8 ]
-	,[    6,   49,  120,    8 ]
-	,[    6,   63,  144,    8 ]
-	,[    4,   43,   64,   12 ]
-	,[    4,   64,   88,   12 ]
-	,[    4,   62,   64,   16 ]
-	,[    2,   44,   36,   20 ]
-	,[    2,   56,   44,   20 ]
-	,[    4,   84,   64,   20 ]
-	,[    2,   72,   48,   22 ]
-	,[    2,   80,   48,   24 ]
-	,[    4,  108,   64,   24 ]
-	,[    2,   70,   40,   26 ]
-	,[    2,   90,   48,   26 ]
-	,[    4,  118,   64,   26 ]
+	,[    2,   18,    8,   48 ]
+	,[    4,   24,    8,   64 ]
+	,[    4,   32,    8,   80 ]
+	,[    4,   38,    8,   96 ]
+	,[    6,   49,    8,  120 ]
+	,[    6,   63,    8,  144 ]
+	,[    4,   43,   12,   64 ]
+	,[    4,   64,   12,   88 ]
+	,[    4,   62,   16,   64 ]
+	,[    2,   44,   20,   36 ]
+	,[    2,   56,   20,   44 ]
+	,[    4,   84,   20,   64 ]
+	,[    2,   72,   22,   48 ]
+	,[    2,   80,   24,   48 ]
+	,[    4,  108,   24,   64 ]
+	,[    2,   70,   26,   40 ]
+	,[    2,   90,   26,   48 ]
+	,[    4,  118,   26,   64 ]
 ];
 
 if('undefined' !== typeof module && module.exports )
