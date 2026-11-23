@@ -255,17 +255,12 @@ function DATAMatrix( Q ) {
 				return hex ? String.fromCharCode( parseInt( hex, 16 ) ) : slash;
 			});
 
-			/* Macro 05/06: ISO/IEC 16022:2024, 7.2.4.8 / Table 3; allow trailing whitespace. */
-			text = text.replace( /^\[\)>\x1e0([56])\x1d([\s\S]*)\x1e\x04\s*$/, function( all, macro, body ) {
-				header.push( +macro + 231 );
-				return body;
+			/* Macro 05/06: ISO/IEC 16022:2024, 7.2.4.8 / Table 3.
+			   A complete wrapper takes priority over leading FNC1. */
+			text = text.replace( /^(?:\[\)>\x1e0([56])\x1d([\s\S]*)\x1e\x04\s*$|<FNC1>)/i, function( all, macro, body ) {
+				header.push( macro ? +macro + 231 : 232 );
+				return body || '';
 			});
-
-			/* Leading FNC1 selects GS1 when no Macro header is present. */
-			if( !header.length && /^<FNC1>/i.test( text ) ) {
-				header.push( 232 );
-				text = text.slice( 6 );
-			}
 		}
 
 		text = unescape( encodeURI( text ) );
@@ -327,37 +322,28 @@ function DATAMatrix( Q ) {
 
 	,encodeSegments = function( text, rectangular, header, version ) {
 
-		var table = DATAMatrix.formats ,formats ,format ,i ,capacity ,base ,spare ,plan;
-		header = header || [];
-
+		var table = DATAMatrix.formats ,format ,i ,capacity ,base ,plan ,best ,rank ,bestRank ,rejected = [];
 		if( text.length > 3116 ) throw new RangeError( 'Message exceeds Data Matrix capacity' );
+		if( !version ) base = findSegments( text, Infinity, header );
 
-		if( version ) {
-			i = table.length;
-			while( i-- ) {
+		do {
+			for( best = null, bestRank = Infinity, i = version ? table.length : rectangular > 1 ? 48 : rectangular ? 30 : 24; i--; ) {
 				format = table[ i ];
-				if( version === format[ 2 ] + 'x' + ( format[ 3 ] || format[ 2 ] ) ) break;
+				if( version ) {
+					if( version === format[ 2 ] + 'x' + ( format[ 3 ] || format[ 2 ] ) ) { best = format; break; }
+				} else if( format[ 1 ] >= base.cost - 2 && !rejected[ format[ 1 ] ] ) {
+					rank = format[ 3 ] ? format[ 2 ] * ( 32 * format[ 3 ] + 1 ) : Infinity; /* area, then height */
+					if( rank <= bestRank ) best = format, bestRank = rank;
+				}
 			}
-			if( i < 0 ) throw new RangeError( 'Unsupported Data Matrix version' );
-			formats = [ format ];
-		} else {
-			formats = table.slice( 0, 24 );
-			if( rectangular ) formats = table.slice( 24, rectangular > 1 ? 48 : 30 ).sort( function( a, b ) {
-				return a[ 2 ] * a[ 3 ] - b[ 2 ] * b[ 3 ] || a[ 2 ] - b[ 2 ];
-			}).concat( formats );
-			base = findSegments( text, Infinity, header );
-		}
-		for( i = 0; i < formats.length; i++ ) {
-			format = formats[ i ];
-			capacity = format[ 1 ];
-			spare = base ? capacity - base.cost : 0;
-			if( spare < -2 ) continue;
-			/* EDIFACT can implicitly return to ASCII with at most two words left.
-			   Reusing the unbounded plan here can turn an explicit unlatch into data. */
-			plan = spare > 2 ? base : findSegments( text, capacity, header );
-			if( plan.cost <= capacity ) return { words: writeSegments( text, plan.history, header ), format: format };
-		}
-		throw new RangeError( 'Message exceeds Data Matrix capacity' );
+			if( !best ) break;
+			capacity = best[ 1 ];
+			/* EDIFACT needs a capacity-specific ending with at most two words left. */
+			plan = base && capacity > base.cost + 2 ? base : findSegments( text, capacity, header );
+			if( plan.cost <= capacity ) return { words: writeSegments( text, plan.history, header ), format: best };
+			rejected[ capacity ] = true;
+		} while( base );
+		throw new RangeError( version && !best ? 'Unsupported Data Matrix version' : 'Message exceeds Data Matrix capacity' );
 	}
 
 	,encodeMsg = function( text, rct, escaped, version ) {
