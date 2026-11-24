@@ -2,7 +2,7 @@
 
 # Data Matrix generator [![LICENSE](img/license.svg)](/LICENSE)
 
-Data Matrix ECC 200 generator in pure JavaScript with compact SVG output and no dependencies. Supports square and rectangular symbols (ISO/IEC 16022:2024), including DMRE formats (ISO/IEC 21471:2025).
+Data Matrix ECC 200 generator in pure JavaScript with compact SVG output and no dependencies. Supports square and classic rectangular symbols (ISO/IEC 16022:2024), plus DMRE (ISO/IEC 21471:2025).
 
 The generator combines ASCII, C40, Text, ANSI X12, EDIFACT, and Base 256 encoding modes to reduce symbol size.
 
@@ -40,7 +40,7 @@ var svgText = DATAMatrix( { msg: 'Hello World!', str: 1 } );
 document.getElementById( 'datamatrix' ).innerHTML = svgText;
 ```
 
-`DATAMatrix( text )` is shorthand for `DATAMatrix( { msg: text } )`. Both output formats support the same encoding and appearance options.
+`DATAMatrix( text )` is shorthand for `DATAMatrix( { msg: text } )`. The same options apply to both SVG output modes.
 
 ### In Node.js
 
@@ -76,20 +76,20 @@ var svgNode = DATAMatrix( {
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | `msg` | `''` | Unicode text to encode. Non-ASCII text uses UTF-8 with ECI 26. |
-| `dim` | `256` | SVG height in pixels, including the quiet zone. The width follows the symbol's aspect ratio. |
+| `dim` | `256` | SVG height in pixels. The width scales automatically. Both include the quiet zone. |
 | `pad` | `2` | Quiet zone on each side, measured in modules. Set to `0` to omit it. |
-| `rct` | `0` | `0`: square; `1`: prefer an original rectangle; `2`: also allow DMRE rectangles. Falls back to a square when no allowed rectangle fits. |
-| `ver` | `''` | Fix the size as height × width, for example `'8x120'`. Overrides `rct`, including DMRE sizes. Omit or use `''` for automatic selection. |
+| `rct` | `0` | `0`: square; `1`: prefer a classic rectangle; `2`: also allow DMRE rectangles. Falls back to a square when no allowed rectangle fits. |
+| `ver` | `''` | Fix the height × width, for example `'20x36'` for DMRE. Overrides `rct`. Leave empty for automatic selection. |
 | `esc` | `0` | Set to `1` to recognize escapes, FNC1, GS separators, and complete Macro 05/06 wrappers. See [Escapes and commands](#escapes-and-commands). |
 | `pal` | `['#000']` | Foreground and optional background as `#RGB` or `#RRGGBB`. The background is transparent when omitted. |
 | `vrb` | `0` | Set to `1` to describe each dark module separately in the SVG path. The encoded matrix stays the same. |
-| `str` | `0` | Set to `1` to return SVG markup as a string. The default returns an SVG DOM element; use string output in environments without a DOM. |
+| `str` | `0` | Set to `1` to return SVG markup as a string. The default returns an SVG DOM element. |
 
-An unknown `ver` or a message exceeding the selected size throws a `RangeError`. A fixed size never falls back to a different size.
+A fixed size throws a `RangeError` if the size is unknown or the message does not fit.
 
 ## Text encoding
 
-Input is a JavaScript Unicode string. The generator converts it to UTF-8 and selects packing modes for the resulting bytes. When non-ASCII bytes are present, it declares UTF-8 once with ECI 000026.
+The generator converts the input string to UTF-8 and chooses encoding modes for the resulting bytes. It adds ECI 000026 if the text contains non-ASCII characters.
 
 <details>
 <summary>UTF-8, ECI, and segment boundaries</summary><br/>
@@ -104,7 +104,7 @@ Without ECI, the standard's default interpretation is ISO-8859-1 (ECI 000003), a
 
 ## Escapes and commands
 
-Set `esc: 1` to recognize the following escapes and commands. The demo exposes this option as **Recognize escapes and commands**. With the default `esc: 0`, the input is literal text; UTF-8 encoding and automatic ECI still apply.
+Set `esc: 1` to process escapes and commands, or turn on **Recognize escapes and commands** in the demo. With `esc: 0`, these sequences are treated as literal text.
 
 | Input | Meaning with `esc: 1` |
 | :--- | :--- |
@@ -115,7 +115,7 @@ Set `esc: 1` to recognize the following escapes and commands. The demo exposes t
 | `[)>\x1E05\x1D…\x1E\x04` | A complete Macro 05 wrapper. |
 | `[)>\x1E06\x1D…\x1E\x04` | A complete Macro 06 wrapper. |
 
-Command tags are case-insensitive. Escapes are expanded before commands are recognized, so `\x3CFNC1>` also becomes an FNC1 command. Use `esc: 0` when those spellings should remain literal. Unknown or incomplete escape spellings remain unchanged.
+Command tags are case-insensitive. Escapes are expanded before commands are recognized, so `\x3CFNC1>` also becomes an FNC1 command. Unknown or incomplete escapes remain unchanged.
 
 ```javascript
 DATAMatrix( {
@@ -131,7 +131,7 @@ The doubled backslash in the JavaScript example passes the literal escape `\x1D`
 <details>
 <summary>GS1, FNC1, and Macro 05/06</summary><br/>
 
-A leading FNC1 is stored in the GS1 header. FNC1 in the second codeword position has the standard industry/AIM meaning.
+FNC1 in the second codeword position can identify an industry application when it follows a letter or a digit pair.
 
 Macro 05/06 replaces a complete standard header and trailer with one codeword, `236` or `237` ([ISO/IEC 16022:2024](https://www.iso.org/standard/80926.html), 7.2.4.8 / Table 3). The wrapper must cover the whole message. Trailing whitespace after the wrapper is ignored. A Macro header takes precedence over GS1 detection. GS separators in the body remain ordinary character 29, while explicit `<FNC1>` commands retain their meaning. The demo reader restores the full Macro header and trailer.
 
@@ -141,15 +141,17 @@ The generator does not support general ECI switching, Structured Append, or Read
 
 ## Symbol sizes and capacity
 
-The generator supports 24 square ECC 200 sizes from 10 × 10 to 144 × 144 modules, six original rectangles, and 18 additional DMRE rectangles. DMRE is enabled with `rct: 2`; existing `rct: 0` and `rct: 1` settings keep their original behavior.
+The generator supports 24 square ECC 200 sizes from 10 × 10 to 144 × 144 modules, six classic rectangles, and 18 DMRE formats.
 
-Fix a size when a particular height or width matters:
+For automatic selection, `rct: 1` considers classic rectangles and `rct: 2` also considers DMRE. The generator picks the smallest fitting rectangular area, preferring the lower height when areas are equal. If no rectangle fits, it tries a square.
+
+Use `ver` to fix the size. This example selects a DMRE symbol 20 modules high and 36 modules wide.
 
 ```javascript
-DATAMatrix( { msg: 'Hello!', ver: '8x120' } );
+DATAMatrix( { msg: 'Hello!', ver: '20x36' } );
 ```
 
-Size names use height first and a lowercase `x`. The automatic selector is used when `ver` is omitted.
+Symbol sizes are written as rows × columns (height × width), as specified in ISO/IEC 16022:2024, §6.3.3, and ISO/IEC 21471:2025, Table 1. The tables below and the demo's **Symbol size** menu and **Matrix** field use this order. Use a lowercase `x` in `ver`.
 
 <details>
 <summary>Symbol sizes and data capacities</summary><br/>
@@ -180,7 +182,7 @@ Dimensions include the finder borders and exclude the quiet zone. Each codeword 
 | 16 × 36 | 32 |
 | 16 × 48 | 49 |
 
-DMRE rectangles (`rct: 2`), from [ISO/IEC 21471:2025](https://www.iso.org/standard/84783.html), Table 1:
+DMRE formats from [ISO/IEC 21471:2025](https://www.iso.org/standard/84783.html), Table 1:
 
 | DMRE size (height × width) | Data codewords |
 | :--- | ---: |
@@ -203,7 +205,7 @@ DMRE rectangles (`rct: 2`), from [ISO/IEC 21471:2025](https://www.iso.org/standa
 | 26 × 48 | 90 |
 | 26 × 64 | 118 |
 
-With rectangles enabled, the generator chooses the smallest fitting rectangular area; equal areas prefer the lower height. DMRE requires a reader that supports these additional sizes.
+DMRE symbols require a reader with DMRE support.
 
 The number of characters that fit depends on the selected modes and service commands. The largest symbol holds up to 3,116 digits without additional headers.
 
@@ -236,14 +238,14 @@ Only turns need to be kept. Straight runs become `h` or `v` commands, and `z` cl
 
 ## Compatibility and verification
 
-The local demo reads the generated SVG modules, reconstructs the codewords, and checks finder borders, Reed–Solomon blocks, and payload bytes. It is a diagnostic reader for pristine symbols; it does not repair damage.
+The local demo reads the generated SVG modules, reconstructs the codewords, and checks finder borders, Reed–Solomon blocks, and payload bytes. The reader reports inconsistencies in the generated symbol and performs no error correction.
 
 <details>
 <summary>144 × 144 ECC interleaving</summary><br/>
 
 The generator uses the ECC block order clarified in [ISO/IEC 16022:2024](https://www.iso.org/standard/80926.html), Annex A.1 and Figure A.2. For 144 × 144, eight blocks contain 156 data codewords each and two contain 155; every block has 62 ECC codewords. ECC starts with block 1, giving zero-based order `0,1,2,3,4,5,6,7,8,9`.
 
-A historical de facto convention rotates the ECC order to `8,9,0,1,2,3,4,5,6,7`. [Zint's documentation](https://github.com/zint/zint/blob/master/docs/manual.pmd) describes both conventions; its `--dmiso144` option selects the clarified ISO placement.
+An older convention uses ECC block order `8,9,0,1,2,3,4,5,6,7`.
 
 In local checks, ZXing Java 3.5.3 rejected three ISO-order 144 × 144 symbols with `ChecksumException` and decoded them when only the ECC order was rotated. A 132 × 132 control decoded in either case. This identifies a decoder compatibility difference, not an error in the generator's ISO ordering.
 
@@ -254,11 +256,11 @@ The generator uses the ISO order and does not expose a compatibility switch. If 
 <details>
 <summary>Reader coverage and conformance checks</summary><br/>
 
-ISO/IEC 16022:2024 is the normative reference. Round trips through this reader or another library check behavior and compatibility; they do not prove full conformance.
+Round-trip checks with the demo reader and other libraries cover behavior and compatibility. Full conformance requires additional checks.
 
 The demo reader supports the generator's ECC 200 and DMRE sizes, leading UTF-8 ECI, FNC1, and Macro 05/06. It returns decoded `text`, payload `bytes`, and an optional `utf8Text` view. Text follows the declared ECI or the ISO default. A displayed segment that splits a UTF-8 character shows its bytes rather than guessed characters.
 
-Remaining conformance work includes exhaustive termination and shift cases, malformed-stream rejection, padding validation, and normative placement/ECC fixtures for every size. The demo reader does not support general ECI switching, Structured Append, or Reader Programming. It is not fully ISO-verified.
+Remaining checks cover all termination and shift cases, rejection of malformed streams, padding validation, and placement and ECC test vectors for every size. The demo reader does not support general ECI switching, Structured Append, or Reader Programming.
 
 </details>
 
